@@ -1,10 +1,12 @@
 use clap::Parser;
+use std::env::current_dir;
 
 #[derive(Parser, Debug)]
 struct Arguments {
     #[clap(subcommand)]
     command: Command,
 }
+use lib::dot_log;
 
 #[derive(Parser, Debug)]
 enum Command {
@@ -27,7 +29,8 @@ fn main() {
     
     match args.command{
         Command::Init => {
-            println!("you entered commit");
+            println!("you entered init");
+            dot_log::DotLog::init(current_dir().unwrap().join(".log")).unwrap();
         }
         Command::Diff { branch } => {
             println!("you entered diff with branch {}", branch);
@@ -45,5 +48,4 @@ fn main() {
             println!("you entered commit with messsage {}", message);
         }
     }
-    println!("Hello, world!");
 }

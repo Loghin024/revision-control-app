@@ -7,3 +7,10 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+derive_more = "0.99.17"
+blake3 = "1.5.0"
+serde = "1.0.194"
+
+[lib]
+name = "lib"
+path = "src/lib.rs"
