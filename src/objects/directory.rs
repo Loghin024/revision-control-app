@@ -64,7 +64,7 @@ impl Objects for DirectoryObjects{
         let blob_folder_name = &blob_hash[0..2];
         let blob_filename = &blob_hash[2..];
         let path_to_blob_folder = self.root.join(format!("{}", blob_folder_name));
-        let path_to_blob_file = self.root.join(format!("{}", blob_filename));
+        let path_to_blob_file = path_to_blob_folder.join(format!("{}", blob_filename));
 
         if path_to_blob_file.exists(){
             Ok(blob)

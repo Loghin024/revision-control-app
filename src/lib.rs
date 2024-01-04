@@ -8,3 +8,9 @@ pub mod dot_log;
 pub mod blob;
 //objects directory from .log, stores all blobs (similar to objects from git)
 pub mod objects;
+
+//
+pub mod directory;
+
+//commit
+pub mod commit;
