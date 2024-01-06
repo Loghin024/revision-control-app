@@ -14,8 +14,8 @@ pub struct DirectoryObjects{
 
 impl DirectoryObjects{
     pub fn new(root:PathBuf)->Result<Self, std::io::Error>{
-        if !root.exists(){
-            create_dir(&root)?;
+        if !root.join("objects").exists(){
+            create_dir(&root.join("objects"))?;
         }
         Ok(Self{root})
     }
@@ -42,7 +42,7 @@ impl Objects for DirectoryObjects{
         // let path_to_blob = self.root.join(format!("{}/{}", blob_folder_name, blob_filename));
         let path_to_blob = self.root.join("objects").join(format!("{}", blob_folder_name)).join(format!("{}", blob_filename));
         // path_to_blob = self.root.join(format!("{}", blob_filename));
-        println!("{:?}", path_to_blob);
+        println!("get: {:?}", path_to_blob);
         match std::fs::File::options().read(true).open(path_to_blob) {
             Ok(mut file) =>{
                 let mut v = Vec::new();
@@ -65,7 +65,7 @@ impl Objects for DirectoryObjects{
         let blob_hash = format!("{}", blob);
         let blob_folder_name = &blob_hash[0..2];
         let blob_filename = &blob_hash[2..];
-        let path_to_blob_folder = self.root.join(format!("{}", blob_folder_name));
+        let path_to_blob_folder = self.root.join("objects").join(format!("{}", blob_folder_name));
         let path_to_blob_file = path_to_blob_folder.join(format!("{}", blob_filename));
 
         if path_to_blob_file.exists(){
@@ -75,7 +75,7 @@ impl Objects for DirectoryObjects{
         {
             if !path_to_blob_folder.exists()
             {
-                println!("{:?}", path_to_blob_file);
+                println!("push {:?}", path_to_blob_file);
                 create_dir(path_to_blob_folder)?;
             }
             println!("*");

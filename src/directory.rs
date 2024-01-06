@@ -8,26 +8,27 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 //directory tree, where leaves are blobs
-#[derive(Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Eq, Default, Deserialize, Serialize, Debug)]
 pub struct Directory{
     #[serde(flatten)]
     root:BTreeMap<String, DirectoryEntry>
 }
 
-#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub enum DirectoryEntry{
     File(Blob),
     Directory(Box<Directory>)
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diff {
-    pub deleted: BTreeSet<String>,
+    pub deleted: BTreeMap<String, DirectoryEntry>,
     pub added: BTreeMap<String, DirectoryEntry>,
-    pub modified: BTreeMap<String, DiffEntry>,
+    // pub modified: BTreeMap<String, DiffEntry>,
+    pub modified: BTreeMap<String, DirectoryEntry>,
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiffEntry {
     File(Blob),
     Directory(Box<Diff>),
@@ -49,7 +50,7 @@ impl DirectoryEntry{
             }
             (DirectoryEntry::File(_), DirectoryEntry::Directory(d)) => {
                 Some(DiffEntry::Directory(Box::new(Diff{
-                    deleted:BTreeSet::new(),
+                    deleted:BTreeMap::new(),
                     added:d.root.clone(),
                     modified:BTreeMap::new()
                 })))
@@ -68,37 +69,105 @@ impl DirectoryEntry{
 
 
 impl Directory{
+
+    fn get_added(&self, main:&Directory, other:&Directory) -> BTreeMap<String, DirectoryEntry>{
+        let mut added:BTreeMap<String, DirectoryEntry> = BTreeMap::new();
+        for (entry_name, entry_obj) in &other.root{
+            if let DirectoryEntry::File(_) = entry_obj {
+                if !main.root.contains_key(entry_name){
+                    if let Some(entry_value) = other.root.get(entry_name)
+                    {
+                        added.insert(entry_name.clone(), entry_value.clone());
+                    }
+                }
+            }
+            else if let DirectoryEntry::Directory(dir_o) = entry_obj{
+                if !main.root.contains_key(entry_name){
+                    if let Some(entry_value) = other.root.get(entry_name){
+                        added.insert(entry_name.clone(), entry_value.clone());
+                    }
+                }
+                else {
+                    if let Some(entry_value) = main.root.get(entry_name)
+                    {
+                            if let DirectoryEntry::Directory(dir_s) = entry_value {
+                                added.extend(self.get_added(&dir_s, &dir_o).into_iter().map(|(k,v)|(k.to_owned(), v)));
+
+                            }
+                    }
+                }
+            }
+        }
+        added
+    }
+
+    fn get_deleted(&self, main:&Directory, other:&Directory) -> BTreeMap<String, DirectoryEntry>{
+        let mut deleted:BTreeMap<String, DirectoryEntry> = BTreeMap::new();
+        for (entry_name, entry_obj) in &main.root{
+            if let DirectoryEntry::File(_) = entry_obj {
+                if !other.root.contains_key(entry_name){
+                    if let Some(entry_value) = main.root.get(entry_name)
+                    {
+                        deleted.insert(entry_name.clone(), entry_value.clone());
+                    }
+                }
+            }
+            else if let DirectoryEntry::Directory(dir_s) = entry_obj{
+                if !other.root.contains_key(entry_name){
+                    if let Some(entry_value) = main.root.get(entry_name){
+                        deleted.insert(entry_name.clone(), entry_value.clone());
+                    }
+                }
+                else {
+                    if let Some(entry_value) = other.root.get(entry_name)
+                    {
+                            if let DirectoryEntry::Directory(dir_o) = entry_value {
+                                deleted.extend(self.get_deleted(&dir_s, &dir_o).into_iter().map(|(k,v)|(k.to_owned(), v)));
+
+                            }
+                    }
+                }
+            }
+        }
+        deleted
+    }
+
+    fn get_changes(&self, main:&Directory, other:&Directory) -> BTreeMap<String, DirectoryEntry>{
+        let mut changes:BTreeMap<String, DirectoryEntry> = BTreeMap::new();
+        for (entry_name, entry_obj) in &other.root{
+            // println!("{:?}\n{:?}\n", entry_name, entry_obj);
+            if let DirectoryEntry::File(_) = entry_obj {
+                if main.root.contains_key(entry_name){
+                    if let Some(entry_value) = main.root.get(entry_name)
+                    {
+                        if let (DirectoryEntry::File(hash_main), DirectoryEntry::File(hash_other)) = (entry_value, entry_obj){
+                            if hash_main != hash_other{
+                                changes.insert(entry_name.clone(), entry_value.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            else if let DirectoryEntry::Directory(dir_o) = entry_obj{
+                if main.root.contains_key(entry_name){
+                    if let Some(entry_value) = main.root.get(entry_name)
+                    {
+                            if let DirectoryEntry::Directory(dir_s) = entry_value {
+                                changes.extend(self.get_changes(&dir_s, &dir_o).into_iter().map(|(k,v)|(k.to_owned(), v)));
+
+                            }
+                    }
+                }
+            }
+        }
+        changes
+    }
+
     pub fn diff(&self, other:&Directory) -> Diff {
-
-        //collect files that are in other but not in self
-        let added: BTreeMap<String, DirectoryEntry> = other
-            .root
-            .iter()
-            .filter(|(file_name, _dir_entry)| !self.root.contains_key(*file_name))
-            .map(|(fname, dir_entry)| (fname.clone(), dir_entry.clone()))
-            .collect();
-
-        //collect files that are in self but not in other
-        let deleted: BTreeSet<String> = self
-            .root
-            .iter()
-            .filter(|(file_name, _dir_entry)| !other.root.contains_key(*file_name))
-            .map(|(fname, _dir_entry)| fname.clone())
-            .collect();
-
-
-        //collect changes between files/folders that share the same name
-        let modified: BTreeMap<String, DiffEntry> = self
-            .root
-            .iter()
-            .filter_map(|(file_name, dir_entry)| {
-                other.root.get(file_name).and_then(|other_dir_entry| {
-                    dir_entry
-                        .diff(other_dir_entry)
-                        .map(|diff| (file_name.clone(), diff))
-                })
-            })
-            .collect();
+        // println!("###{:?}\n{:?}\n###", self, other);
+        let added = self.get_added(&self, &other);
+        let deleted = self.get_deleted(&self, &other);
+        let modified = self.get_changes(&self, &other);
 
 
         Diff {

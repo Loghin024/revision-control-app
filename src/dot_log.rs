@@ -42,7 +42,7 @@ impl DotLog{
         create_dir(&root.join("branches"))?;
 
         //initial commit
-        let mut objects = DirectoryObjects::new(root.join("objects"))?;
+        let mut objects = DirectoryObjects::new(root.clone())?;
         let blob_dir = Directory::default();
         let blob_dir = objects.insert_json(&blob_dir)?;
         let commit = Commit{
@@ -80,6 +80,10 @@ impl DotLog{
 
     pub fn get_branch_commit_hash(&self, branch:&str) -> Result<Blob, Error>{
         read_json(&self.root.join("branches").join(&branch))
+    }
+
+    pub fn set_branch_commit_hash(&self, branch:&str, blob:Blob)->Result<(), Error>{
+        write_json(&blob, &self.root.join("branches").join(&branch))
     }
 
     pub fn ignores(&self) -> Result<Ignores, Error> {
