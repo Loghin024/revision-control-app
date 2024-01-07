@@ -74,6 +74,15 @@ impl DotLog{
         Ok(read_to_string(&self.root.join("branch"))?)
     }
 
+    pub fn set_branch(&self, new_branch: &str) -> Result<(), Error> {
+        let mut file = File::options()
+            .write(true)
+            .truncate(true)
+            .open(&self.root.join("branch"))?;
+        file.write(new_branch.as_bytes())?;
+        Ok(())
+    }
+
     pub fn get_objects(&self) -> Result<DirectoryObjects, Error> {
         Ok(DirectoryObjects::new(self.root.clone())?)
     }
@@ -84,6 +93,18 @@ impl DotLog{
 
     pub fn set_branch_commit_hash(&self, branch:&str, blob:Blob)->Result<(), Error>{
         write_json(&blob, &self.root.join("branches").join(&branch))
+    }
+
+    pub fn branch_exists(&self, branch: &str) -> bool {
+        self.root.join("branches").join(&branch).exists()
+    }
+
+    pub fn create_branch(&self, new_branch:&str)->Result<(), Error>{
+        if !self.branch_exists(&new_branch){
+            let commit_hash = self.get_branch_commit_hash(&self.get_branch()?)?;
+            return write_json(&commit_hash,  &self.root.join("branches").join(&new_branch));
+        }
+        Ok(())
     }
 
     pub fn ignores(&self) -> Result<Ignores, Error> {

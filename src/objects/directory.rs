@@ -39,10 +39,7 @@ impl Objects for DirectoryObjects{
         let blob_hash = format!("{}", id);
         let blob_folder_name = &blob_hash[0..2];
         let blob_filename = &blob_hash[2..];
-        // let path_to_blob = self.root.join(format!("{}/{}", blob_folder_name, blob_filename));
         let path_to_blob = self.root.join("objects").join(format!("{}", blob_folder_name)).join(format!("{}", blob_filename));
-        // path_to_blob = self.root.join(format!("{}", blob_filename));
-        println!("get: {:?}", path_to_blob);
         match std::fs::File::options().read(true).open(path_to_blob) {
             Ok(mut file) =>{
                 let mut v = Vec::new();
@@ -75,7 +72,6 @@ impl Objects for DirectoryObjects{
         {
             if !path_to_blob_folder.exists()
             {
-                println!("push {:?}", path_to_blob_file);
                 create_dir(path_to_blob_folder)?;
             }
             println!("*");
