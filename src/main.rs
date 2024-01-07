@@ -82,9 +82,19 @@ fn main() {
                 None =>{println!("Not a log repo!"); process::exit(0);}
                 
             };
+
             if dot_log.branch_exists(&branch){
+                let mut objects = dot_log.get_objects().expect("Error at getting objects!");
+                let selected_branch_commit_hash = dot_log.get_branch_commit_hash(&branch).expect("Error at getting last commit hash from current branch!");
+                let ignores = dot_log.ignores().expect("Error at getting files to be ignored!");
+                let current_branch_tree = Directory::new(current_directory.as_path(), &ignores, &mut objects).expect("");
+                let selected_branch_commit_entry:Commit = objects.read_json(selected_branch_commit_hash).expect("Error at getting commit data");
+                let selected_branch_commit_tree:Directory = objects.read_json(selected_branch_commit_entry.directory).expect("e");
+                // serde_json::to_writer_pretty(stdout(), &current_branch_tree.diff(&selected_branch_commit_tree)).expect("msg");
+                current_branch_tree.build_branch_working_dir(&selected_branch_commit_tree, current_directory.join(".log"));
                 match dot_log.set_branch(&branch){
                     Ok(_)=>{println!("Switched to branch: {}", branch);},
+
                     Err(err)=>{println!("error at switching to branch {}\npossible reason: {:?}", branch, err)}
                 }
             }
@@ -92,6 +102,13 @@ fn main() {
                 match dot_log.create_branch(&branch) {
                     Ok(_)=>{
                         println!("Created branch: {}", branch);
+                        let mut objects = dot_log.get_objects().expect("Error at getting objects!");
+                        let selected_branch_commit_hash = dot_log.get_branch_commit_hash(&branch).expect("Error at getting last commit hash from current branch!");
+                        let ignores = dot_log.ignores().expect("Error at getting files to be ignored!");
+                        let current_branch_tree = Directory::new(current_directory.as_path(), &ignores, &mut objects).expect("");
+                        let selected_branch_commit_entry:Commit = objects.read_json(selected_branch_commit_hash).expect("Error at getting commit data");
+                        let selected_branch_commit_tree:Directory = objects.read_json(selected_branch_commit_entry.directory).expect("e");
+                        current_branch_tree.build_branch_working_dir(&selected_branch_commit_tree, current_directory.join(".log"));
                         match dot_log.set_branch(&branch){
                             Ok(_)=>{println!("Switched to branch: {}", branch);},
                             Err(err)=>{println!("error at switching to branch {}\npossible reason: {:?}", branch, err)}

@@ -74,8 +74,7 @@ impl Objects for DirectoryObjects{
             {
                 create_dir(path_to_blob_folder)?;
             }
-            println!("*");
-            let mut file = File::options().create(true).write(true).open(path_to_blob_file)?;
+            let mut file = File::options().create(true).read(true).write(true).open(path_to_blob_file)?;
             file.write(object)?;
             Ok(blob)
         }

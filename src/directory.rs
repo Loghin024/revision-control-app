@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, BTreeSet}, path::Path, fs::File, io::Read};
+use std::{collections::{BTreeMap, BTreeSet}, path::{Path, PathBuf}, fs::{File, self}, io::Read};
 
 use crate::{
     blob::Blob,
@@ -32,6 +32,27 @@ pub struct Diff {
 pub enum DiffEntry {
     File(Blob),
     Directory(Box<Diff>),
+}
+
+//list of ignored files from all levels
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+pub struct Ignores {
+    pub set: BTreeSet<String>,
+}
+
+impl Default for Ignores {
+    fn default() -> Self {
+        Ignores {
+            set: vec![String::from(".log")].into_iter().collect(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Error<Store: Objects> {
+    ObjectMissing(Blob),
+    Store(Store::Error),
+    IO(std::io::Error),
 }
 
 impl DirectoryEntry{
@@ -142,7 +163,7 @@ impl Directory{
                     {
                         if let (DirectoryEntry::File(hash_main), DirectoryEntry::File(hash_other)) = (entry_value, entry_obj){
                             if hash_main != hash_other{
-                                changes.insert(entry_name.clone(), entry_value.clone());
+                                changes.insert(entry_name.clone(), entry_obj.clone());
                             }
                         }
                     }
@@ -163,6 +184,64 @@ impl Directory{
         changes
     }
 
+    pub fn add_files(&self, a_tree:&Directory, root:&PathBuf)
+    {
+        for (entry_name, entry_value) in &a_tree.root{
+            if let DirectoryEntry::File(file_blob) = entry_value{
+                let blob_hash = format!("{}", file_blob);
+                let blob_folder_name = &blob_hash[0..2];
+                let blob_filename = &blob_hash[2..];
+                let path_to_blob = root.join("objects").join(format!("{}", blob_folder_name)).join(format!("{}", blob_filename));
+                std::fs::copy(path_to_blob, &entry_name).expect("error at rebuilding branch working tree");
+            }
+            else if let DirectoryEntry::Directory(dir_entry) = entry_value{
+                std::fs::create_dir_all(entry_name.clone()).expect("");
+                self.add_files(&dir_entry, &root);
+            }
+        }
+    }
+
+    pub fn update_files(&self, u_tree:&Directory, root:&PathBuf){
+
+        for (entry_name, entry_value) in &u_tree.root{
+            if let DirectoryEntry::File(file_blob) = entry_value{
+                let blob_hash = format!("{}", file_blob);
+                let blob_folder_name = &blob_hash[0..2];
+                let blob_filename = &blob_hash[2..];
+                let path_to_blob = root.join("objects").join(format!("{}", blob_folder_name)).join(format!("{}", blob_filename));
+                println!("{}\n{:?}", entry_name, path_to_blob);
+                std::fs::remove_file(&entry_name).expect("");
+                println!("file removed");
+                std::fs::copy(path_to_blob, &entry_name).expect("error at rebuilding branch working tree");
+            }
+            else if let DirectoryEntry::Directory(dir_entry) = entry_value{
+                self.update_files(&dir_entry, &root);
+            }
+        }
+
+    }
+
+    pub fn build_branch_working_dir(&self, branch_tree:&Directory, root:PathBuf) 
+    {
+        let diff = self.diff(&branch_tree);
+        //this keeps intact files that are the same 
+        //deletes files that are in current working copy but not in branch tree
+        //adds files that are in branche tree but not in working copy
+        
+        for (entry_name, entry_value) in diff.deleted{
+            if let DirectoryEntry::File(_) = entry_value{
+                fs::remove_file(entry_name).expect("error at removing file");
+            }
+            else if let DirectoryEntry::Directory(_) = entry_value{
+                fs::remove_dir_all(entry_name).expect("error at removing folder");
+            }
+        }
+
+        self.add_files(&Directory{root:diff.added}, &root);
+        self.update_files(&Directory{root:diff.modified}, &root);
+
+    }
+
     pub fn diff(&self, other:&Directory) -> Diff {
         // println!("###{:?}\n{:?}\n###", self, other);
         let added = self.get_added(&self, &other);
@@ -178,27 +257,6 @@ impl Directory{
     }
 }
 
-//list of ignored files from all levels
-#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-pub struct Ignores {
-    pub set: BTreeSet<String>,
-}
-
-impl Default for Ignores {
-    fn default() -> Self {
-        Ignores {
-            set: vec![String::from(".log")].into_iter().collect(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum Error<Store: Objects> {
-    ObjectMissing(Blob),
-    Store(Store::Error),
-    IO(std::io::Error),
-}
-
 impl Directory{
     pub fn new<Store: Objects>(
         dir: &Path,
@@ -207,6 +265,7 @@ impl Directory{
     ) -> Result<Self, Error<Store>> 
     {
         let mut root = BTreeMap::new();
+        // println!("{:?}", dir);
         for f in std::fs::read_dir(dir).map_err(Error::IO)? {
             let dir_entry = f.map_err(Error::IO)?;
             if ignores
@@ -218,14 +277,17 @@ impl Directory{
             let file_type = dir_entry.file_type().map_err(Error::IO)?;
             if file_type.is_dir() {
                 let directory = Directory::new(dir_entry.path().as_path(), ignores, store)?;
+                // println!("{:?}", dir.join(dir_entry.file_name()));
                 root.insert(
-                    dir_entry.file_name().into_string().unwrap(),
+                    // dir_entry.file_name().into_string().unwrap(),
+                    dir.join(dir_entry.file_name()).to_string_lossy().to_string(),
                     DirectoryEntry::Directory(Box::new(directory)),
                 );
             } else if file_type.is_file() {
                 let id = Blob::try_from(dir_entry.path().as_path()).map_err(Error::IO)?;
                 root.insert(
-                    dir_entry.file_name().into_string().unwrap(),
+                    // dir_entry.file_name().into_string().unwrap(),
+                    dir.join(dir_entry.file_name()).to_string_lossy().to_string(),
                     DirectoryEntry::File(id),
                 );
                 let mut v = Vec::new();
