@@ -1,23 +1,25 @@
-use std::{collections::{BTreeMap, BTreeSet}, path::{Path, PathBuf}, fs::{File, self}, io::Read};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::{self, File},
+    io::Read,
+    path::{Path, PathBuf},
+};
 
-use crate::{
-    blob::Blob,
-    objects::Objects
-    };
+use crate::{blob::Blob, objects::Objects};
 
 use serde::{Deserialize, Serialize};
 
 //directory tree, where leaves are blobs
 #[derive(Clone, PartialEq, Eq, Default, Deserialize, Serialize, Debug)]
-pub struct Directory{
+pub struct Directory {
     #[serde(flatten)]
-    root:BTreeMap<String, DirectoryEntry>
+    root: BTreeMap<String, DirectoryEntry>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub enum DirectoryEntry{
+pub enum DirectoryEntry {
     File(Blob),
-    Directory(Box<Directory>)
+    Directory(Box<Directory>),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,14 +57,13 @@ pub enum Error<Store: Objects> {
     IO(std::io::Error),
 }
 
-impl DirectoryEntry{
-    pub fn diff(&self, other: &DirectoryEntry) -> Option<DiffEntry>{
+impl DirectoryEntry {
+    pub fn diff(&self, other: &DirectoryEntry) -> Option<DiffEntry> {
         match (self, other) {
             (DirectoryEntry::File(blob_s), DirectoryEntry::File(blob_o)) => {
                 if blob_s != blob_o {
                     Some(DiffEntry::File(*blob_o))
-                }
-                else {
+                } else {
                     None
                 }
             }
@@ -70,17 +71,16 @@ impl DirectoryEntry{
                 Some(DiffEntry::File(*blob_o))
             }
             (DirectoryEntry::File(_), DirectoryEntry::Directory(d)) => {
-                Some(DiffEntry::Directory(Box::new(Diff{
-                    deleted:BTreeMap::new(),
-                    added:d.root.clone(),
-                    modified:BTreeMap::new()
+                Some(DiffEntry::Directory(Box::new(Diff {
+                    deleted: BTreeMap::new(),
+                    added: d.root.clone(),
+                    modified: BTreeMap::new(),
                 })))
             }
             (DirectoryEntry::Directory(d_s), DirectoryEntry::Directory(d_o)) => {
                 if d_s == d_o {
                     Some(DiffEntry::Directory(Box::new(d_s.diff(d_o))))
-                }
-                else {
+                } else {
                     None
                 }
             }
@@ -88,33 +88,30 @@ impl DirectoryEntry{
     }
 }
 
-
-impl Directory{
-
-    fn get_added(&self, main:&Directory, other:&Directory) -> BTreeMap<String, DirectoryEntry>{
-        let mut added:BTreeMap<String, DirectoryEntry> = BTreeMap::new();
-        for (entry_name, entry_obj) in &other.root{
+impl Directory {
+    fn get_added(&self, main: &Directory, other: &Directory) -> BTreeMap<String, DirectoryEntry> {
+        let mut added: BTreeMap<String, DirectoryEntry> = BTreeMap::new();
+        for (entry_name, entry_obj) in &other.root {
             if let DirectoryEntry::File(_) = entry_obj {
-                if !main.root.contains_key(entry_name){
-                    if let Some(entry_value) = other.root.get(entry_name)
-                    {
+                if !main.root.contains_key(entry_name) {
+                    if let Some(entry_value) = other.root.get(entry_name) {
                         added.insert(entry_name.clone(), entry_value.clone());
                     }
                 }
-            }
-            else if let DirectoryEntry::Directory(dir_o) = entry_obj{
-                if !main.root.contains_key(entry_name){
-                    if let Some(entry_value) = other.root.get(entry_name){
+            } else if let DirectoryEntry::Directory(dir_o) = entry_obj {
+                if !main.root.contains_key(entry_name) {
+                    if let Some(entry_value) = other.root.get(entry_name) {
                         added.insert(entry_name.clone(), entry_value.clone());
                     }
-                }
-                else {
-                    if let Some(entry_value) = main.root.get(entry_name)
-                    {
-                            if let DirectoryEntry::Directory(dir_s) = entry_value {
-                                added.extend(self.get_added(&dir_s, &dir_o).into_iter().map(|(k,v)|(k.to_owned(), v)));
-
-                            }
+                } else {
+                    if let Some(entry_value) = main.root.get(entry_name) {
+                        if let DirectoryEntry::Directory(dir_s) = entry_value {
+                            added.extend(
+                                self.get_added(&dir_s, &dir_o)
+                                    .into_iter()
+                                    .map(|(k, v)| (k.to_owned(), v)),
+                            );
+                        }
                     }
                 }
             }
@@ -122,30 +119,29 @@ impl Directory{
         added
     }
 
-    fn get_deleted(&self, main:&Directory, other:&Directory) -> BTreeMap<String, DirectoryEntry>{
-        let mut deleted:BTreeMap<String, DirectoryEntry> = BTreeMap::new();
-        for (entry_name, entry_obj) in &main.root{
+    fn get_deleted(&self, main: &Directory, other: &Directory) -> BTreeMap<String, DirectoryEntry> {
+        let mut deleted: BTreeMap<String, DirectoryEntry> = BTreeMap::new();
+        for (entry_name, entry_obj) in &main.root {
             if let DirectoryEntry::File(_) = entry_obj {
-                if !other.root.contains_key(entry_name){
-                    if let Some(entry_value) = main.root.get(entry_name)
-                    {
+                if !other.root.contains_key(entry_name) {
+                    if let Some(entry_value) = main.root.get(entry_name) {
                         deleted.insert(entry_name.clone(), entry_value.clone());
                     }
                 }
-            }
-            else if let DirectoryEntry::Directory(dir_s) = entry_obj{
-                if !other.root.contains_key(entry_name){
-                    if let Some(entry_value) = main.root.get(entry_name){
+            } else if let DirectoryEntry::Directory(dir_s) = entry_obj {
+                if !other.root.contains_key(entry_name) {
+                    if let Some(entry_value) = main.root.get(entry_name) {
                         deleted.insert(entry_name.clone(), entry_value.clone());
                     }
-                }
-                else {
-                    if let Some(entry_value) = other.root.get(entry_name)
-                    {
-                            if let DirectoryEntry::Directory(dir_o) = entry_value {
-                                deleted.extend(self.get_deleted(&dir_s, &dir_o).into_iter().map(|(k,v)|(k.to_owned(), v)));
-
-                            }
+                } else {
+                    if let Some(entry_value) = other.root.get(entry_name) {
+                        if let DirectoryEntry::Directory(dir_o) = entry_value {
+                            deleted.extend(
+                                self.get_deleted(&dir_s, &dir_o)
+                                    .into_iter()
+                                    .map(|(k, v)| (k.to_owned(), v)),
+                            );
+                        }
                     }
                 }
             }
@@ -153,30 +149,31 @@ impl Directory{
         deleted
     }
 
-    fn get_changes(&self, main:&Directory, other:&Directory) -> BTreeMap<String, DirectoryEntry>{
-        let mut changes:BTreeMap<String, DirectoryEntry> = BTreeMap::new();
-        for (entry_name, entry_obj) in &other.root{
-            // println!("{:?}\n{:?}\n", entry_name, entry_obj);
+    fn get_changes(&self, main: &Directory, other: &Directory) -> BTreeMap<String, DirectoryEntry> {
+        let mut changes: BTreeMap<String, DirectoryEntry> = BTreeMap::new();
+        for (entry_name, entry_obj) in &other.root {
             if let DirectoryEntry::File(_) = entry_obj {
-                if main.root.contains_key(entry_name){
-                    if let Some(entry_value) = main.root.get(entry_name)
-                    {
-                        if let (DirectoryEntry::File(hash_main), DirectoryEntry::File(hash_other)) = (entry_value, entry_obj){
-                            if hash_main != hash_other{
+                if main.root.contains_key(entry_name) {
+                    if let Some(entry_value) = main.root.get(entry_name) {
+                        if let (DirectoryEntry::File(hash_main), DirectoryEntry::File(hash_other)) =
+                            (entry_value, entry_obj)
+                        {
+                            if hash_main != hash_other {
                                 changes.insert(entry_name.clone(), entry_obj.clone());
                             }
                         }
                     }
                 }
-            }
-            else if let DirectoryEntry::Directory(dir_o) = entry_obj{
-                if main.root.contains_key(entry_name){
-                    if let Some(entry_value) = main.root.get(entry_name)
-                    {
-                            if let DirectoryEntry::Directory(dir_s) = entry_value {
-                                changes.extend(self.get_changes(&dir_s, &dir_o).into_iter().map(|(k,v)|(k.to_owned(), v)));
-
-                            }
+            } else if let DirectoryEntry::Directory(dir_o) = entry_obj {
+                if main.root.contains_key(entry_name) {
+                    if let Some(entry_value) = main.root.get(entry_name) {
+                        if let DirectoryEntry::Directory(dir_s) = entry_value {
+                            changes.extend(
+                                self.get_changes(&dir_s, &dir_o)
+                                    .into_iter()
+                                    .map(|(k, v)| (k.to_owned(), v)),
+                            );
+                        }
                     }
                 }
             }
@@ -184,70 +181,123 @@ impl Directory{
         changes
     }
 
-    pub fn add_files(&self, a_tree:&Directory, root:&PathBuf)
-    {
-        for (entry_name, entry_value) in &a_tree.root{
-            if let DirectoryEntry::File(file_blob) = entry_value{
+    pub fn add_files(&self, a_tree: &Directory, root: &PathBuf) {
+        for (entry_name, entry_value) in &a_tree.root {
+            if let DirectoryEntry::File(file_blob) = entry_value {
                 let blob_hash = format!("{}", file_blob);
                 let blob_folder_name = &blob_hash[0..2];
                 let blob_filename = &blob_hash[2..];
-                let path_to_blob = root.join("objects").join(format!("{}", blob_folder_name)).join(format!("{}", blob_filename));
-                std::fs::copy(path_to_blob, &entry_name).expect("error at rebuilding branch working tree");
-            }
-            else if let DirectoryEntry::Directory(dir_entry) = entry_value{
+                let path_to_blob = root
+                    .join("objects")
+                    .join(format!("{}", blob_folder_name))
+                    .join(format!("{}", blob_filename));
+                std::fs::copy(path_to_blob, &entry_name)
+                    .expect("error at rebuilding branch working tree");
+            } else if let DirectoryEntry::Directory(dir_entry) = entry_value {
                 std::fs::create_dir_all(entry_name.clone()).expect("");
                 self.add_files(&dir_entry, &root);
             }
         }
     }
 
-    pub fn update_files(&self, u_tree:&Directory, root:&PathBuf){
-
-        for (entry_name, entry_value) in &u_tree.root{
-            if let DirectoryEntry::File(file_blob) = entry_value{
+    pub fn update_files(&self, u_tree: &Directory, root: &PathBuf) {
+        for (entry_name, entry_value) in &u_tree.root {
+            if let DirectoryEntry::File(file_blob) = entry_value {
                 let blob_hash = format!("{}", file_blob);
                 let blob_folder_name = &blob_hash[0..2];
                 let blob_filename = &blob_hash[2..];
-                let path_to_blob = root.join("objects").join(format!("{}", blob_folder_name)).join(format!("{}", blob_filename));
-                println!("{}\n{:?}", entry_name, path_to_blob);
+                let path_to_blob = root
+                    .join("objects")
+                    .join(format!("{}", blob_folder_name))
+                    .join(format!("{}", blob_filename));
                 std::fs::remove_file(&entry_name).expect("");
-                println!("file removed");
-                std::fs::copy(path_to_blob, &entry_name).expect("error at rebuilding branch working tree");
-            }
-            else if let DirectoryEntry::Directory(dir_entry) = entry_value{
+                std::fs::copy(path_to_blob, &entry_name)
+                    .expect("error at rebuilding branch working tree");
+            } else if let DirectoryEntry::Directory(dir_entry) = entry_value {
                 self.update_files(&dir_entry, &root);
             }
         }
-
     }
 
-    pub fn build_branch_working_dir(&self, branch_tree:&Directory, root:PathBuf) 
-    {
+    pub fn solve_conflicts(&self, u_tree: &Directory, root: &PathBuf) {
+        for (entry_name, entry_value) in &u_tree.root {
+            if let DirectoryEntry::File(file_blob) = entry_value {
+                let blob_hash = format!("{}", file_blob);
+                let blob_folder_name = &blob_hash[0..2];
+                let blob_filename = &blob_hash[2..];
+                let path_to_blob = root
+                    .join("objects")
+                    .join(format!("{}", blob_folder_name))
+                    .join(format!("{}", blob_filename));
+                println!(
+                    "CONFLICT {}:\nif you want to keep current version enter [yes|no]",
+                    entry_name
+                );
+                let mut buffer = String::new();
+                match std::io::stdin().read_line(&mut buffer) {
+                    Ok(_) => {
+                        if buffer == "yes\r\n" {
+                            println!("current version of {} will be keeped", entry_name);
+                        } else if buffer == "no\r\n" {
+                            std::fs::remove_file(&entry_name).expect("");
+                            std::fs::copy(path_to_blob, &entry_name)
+                                .expect("error at rebuilding branch working tree");
+                            println!("version of {} was replaced", entry_name);
+                        } else {
+                            println!("unrecognized answer, {} will remain unchanged", entry_name);
+                        }
+                    }
+                    Err(err) => {
+                        //in case of error, current version will be keeped
+                        println!("an error occured while receaving user answer: {}", err);
+                        println!("current version of {} will be keeped", entry_name);
+                    }
+                }
+            } else if let DirectoryEntry::Directory(dir_entry) = entry_value {
+                self.solve_conflicts(&dir_entry, &root);
+            }
+        }
+    }
+
+    pub fn build_branch_working_dir(&self, branch_tree: &Directory, root: PathBuf) {
         let diff = self.diff(&branch_tree);
-        //this keeps intact files that are the same 
+        //this keeps intact files that are the same
         //deletes files that are in current working copy but not in branch tree
         //adds files that are in branche tree but not in working copy
-        
-        for (entry_name, entry_value) in diff.deleted{
-            if let DirectoryEntry::File(_) = entry_value{
+
+        for (entry_name, entry_value) in diff.deleted {
+            if let DirectoryEntry::File(_) = entry_value {
                 fs::remove_file(entry_name).expect("error at removing file");
-            }
-            else if let DirectoryEntry::Directory(_) = entry_value{
+            } else if let DirectoryEntry::Directory(_) = entry_value {
                 fs::remove_dir_all(entry_name).expect("error at removing folder");
             }
         }
 
-        self.add_files(&Directory{root:diff.added}, &root);
-        self.update_files(&Directory{root:diff.modified}, &root);
-
+        self.add_files(&Directory { root: diff.added }, &root);
+        self.update_files(
+            &Directory {
+                root: diff.modified,
+            },
+            &root,
+        );
     }
 
-    pub fn diff(&self, other:&Directory) -> Diff {
-        // println!("###{:?}\n{:?}\n###", self, other);
+    pub fn merge_branches(&self, branch_tree: &Directory, root: PathBuf) {
+        let diff = self.diff(&branch_tree);
+
+        self.add_files(&Directory { root: diff.added }, &root);
+        self.solve_conflicts(
+            &Directory {
+                root: diff.modified,
+            },
+            &root,
+        );
+    }
+
+    pub fn diff(&self, other: &Directory) -> Diff {
         let added = self.get_added(&self, &other);
         let deleted = self.get_deleted(&self, &other);
         let modified = self.get_changes(&self, &other);
-
 
         Diff {
             added,
@@ -257,15 +307,13 @@ impl Directory{
     }
 }
 
-impl Directory{
+impl Directory {
     pub fn new<Store: Objects>(
         dir: &Path,
         ignores: &Ignores,
         store: &mut Store,
-    ) -> Result<Self, Error<Store>> 
-    {
+    ) -> Result<Self, Error<Store>> {
         let mut root = BTreeMap::new();
-        // println!("{:?}", dir);
         for f in std::fs::read_dir(dir).map_err(Error::IO)? {
             let dir_entry = f.map_err(Error::IO)?;
             if ignores
@@ -277,17 +325,18 @@ impl Directory{
             let file_type = dir_entry.file_type().map_err(Error::IO)?;
             if file_type.is_dir() {
                 let directory = Directory::new(dir_entry.path().as_path(), ignores, store)?;
-                // println!("{:?}", dir.join(dir_entry.file_name()));
                 root.insert(
-                    // dir_entry.file_name().into_string().unwrap(),
-                    dir.join(dir_entry.file_name()).to_string_lossy().to_string(),
+                    dir.join(dir_entry.file_name())
+                        .to_string_lossy()
+                        .to_string(),
                     DirectoryEntry::Directory(Box::new(directory)),
                 );
             } else if file_type.is_file() {
                 let id = Blob::try_from(dir_entry.path().as_path()).map_err(Error::IO)?;
                 root.insert(
-                    // dir_entry.file_name().into_string().unwrap(),
-                    dir.join(dir_entry.file_name()).to_string_lossy().to_string(),
+                    dir.join(dir_entry.file_name())
+                        .to_string_lossy()
+                        .to_string(),
                     DirectoryEntry::File(id),
                 );
                 let mut v = Vec::new();
@@ -307,5 +356,3 @@ impl Directory{
         Ok(Directory { root })
     }
 }
-
-

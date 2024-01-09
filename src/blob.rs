@@ -1,8 +1,13 @@
 //Binary Large OBject
-use::blake3::Hash;
 use crate::hex;
-use std::{fmt::{Display, Debug}, fs::File, io::Read, path::Path};
-use serde::{Serialize,Deserialize};
+use ::blake3::Hash;
+use serde::{Deserialize, Serialize};
+use std::{
+    fmt::{Debug, Display},
+    fs::File,
+    io::Read,
+    path::Path,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Blob(Hash);
@@ -13,7 +18,7 @@ impl Ord for Blob {
     }
 }
 
-impl PartialOrd for Blob{
+impl PartialOrd for Blob {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.0.as_bytes().partial_cmp(other.0.as_bytes())
     }
@@ -38,12 +43,13 @@ impl Display for Blob {
     }
 }
 
-impl Serialize for Blob{
+impl Serialize for Blob {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
-                let binary: &[u8] = self.0.as_bytes();
-                hex::Hex::from(binary).serialize(serializer)
+    where
+        S: serde::Serializer,
+    {
+        let binary: &[u8] = self.0.as_bytes();
+        hex::Hex::from(binary).serialize(serializer)
     }
 }
 

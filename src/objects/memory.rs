@@ -2,30 +2,32 @@ use crate::blob::Blob;
 
 use super::Objects;
 
-use::std::collections::{BTreeMap, btree_map::Entry};
+use ::std::collections::{btree_map::Entry, BTreeMap};
 use std::convert::Infallible;
 
-pub struct InMemoryBlobStore{
-    blobs:BTreeMap<Blob, Vec<u8>>,
+pub struct InMemoryBlobStore {
+    blobs: BTreeMap<Blob, Vec<u8>>,
 }
 
-impl InMemoryBlobStore{
-    pub fn new() -> Self{
-        Self{blobs:BTreeMap::new()}
+impl InMemoryBlobStore {
+    pub fn new() -> Self {
+        Self {
+            blobs: BTreeMap::new(),
+        }
     }
 }
 
-impl Objects for InMemoryBlobStore{
+impl Objects for InMemoryBlobStore {
     type Error = Infallible;
 
-    fn exists(&self, id:Blob) -> Result<bool, Self::Error> {
+    fn exists(&self, id: Blob) -> Result<bool, Self::Error> {
         Ok(self.blobs.contains_key(&id))
     }
 
-    fn get(&self, id:Blob) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn get(&self, id: Blob) -> Result<Option<Vec<u8>>, Self::Error> {
         match self.blobs.get(&id) {
-            Some(v) => {Ok(Some(v.clone()))}
-            None=>Ok(None),
+            Some(v) => Ok(Some(v.clone())),
+            None => Ok(None),
         }
     }
 

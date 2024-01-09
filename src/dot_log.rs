@@ -1,15 +1,21 @@
-use std::{
-    path::{PathBuf, Path}, 
-    io::Write,
-    fs::{create_dir_all, create_dir, read_to_string, File}, collections::BTreeSet};
 use derive_more::From;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::BTreeSet,
+    fs::{create_dir, create_dir_all, read_to_string, File},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
-use crate::{objects::{directory::DirectoryObjects, Objects}, directory::{Directory, Ignores}, blob::Blob, commit::Commit};
-
+use crate::{
+    blob::Blob,
+    commit::Commit,
+    directory::{Directory, Ignores},
+    objects::{directory::DirectoryObjects, Objects},
+};
 
 #[derive(Debug, From)]
-pub enum Error{
+pub enum Error {
     #[from]
     IO(std::io::Error),
     #[from]
@@ -17,16 +23,15 @@ pub enum Error{
     MissingObject(Blob),
 }
 
-pub struct DotLog{
-    root:PathBuf,
+pub struct DotLog {
+    root: PathBuf,
 }
 
-impl DotLog{
-    pub fn init(root:PathBuf)->Result<Self, Error> {
-        if root.exists()
-        {
+impl DotLog {
+    pub fn init(root: PathBuf) -> Result<Self, Error> {
+        if root.exists() {
             println!("A repository already exists here!");
-            return Ok(DotLog{root});
+            return Ok(DotLog { root });
         }
 
         create_dir_all(&root)?;
@@ -45,10 +50,10 @@ impl DotLog{
         let mut objects = DirectoryObjects::new(root.clone())?;
         let blob_dir = Directory::default();
         let blob_dir = objects.insert_json(&blob_dir)?;
-        let commit = Commit{
-            directory:blob_dir,
-            message:String::from("first commit"),
-            previous:BTreeSet::new()
+        let commit = Commit {
+            directory: blob_dir,
+            message: String::from("first commit"),
+            previous: BTreeSet::new(),
         };
 
         let commit_id = objects.insert_json(&commit)?;
@@ -56,16 +61,13 @@ impl DotLog{
         let ignores = Ignores::default();
         write_json(&ignores, &root.join("ignores"))?;
 
-        Ok(DotLog{root})
-
-
+        Ok(DotLog { root })
     }
 
-    pub fn is_log_repo(path:PathBuf) -> Option<Self>{
-        if path.exists(){
-            Some(DotLog{root:path})
-        }
-        else {
+    pub fn is_log_repo(path: PathBuf) -> Option<Self> {
+        if path.exists() {
+            Some(DotLog { root: path })
+        } else {
             None
         }
     }
@@ -87,11 +89,11 @@ impl DotLog{
         Ok(DirectoryObjects::new(self.root.clone())?)
     }
 
-    pub fn get_branch_commit_hash(&self, branch:&str) -> Result<Blob, Error>{
+    pub fn get_branch_commit_hash(&self, branch: &str) -> Result<Blob, Error> {
         read_json(&self.root.join("branches").join(&branch))
     }
 
-    pub fn set_branch_commit_hash(&self, branch:&str, blob:Blob)->Result<(), Error>{
+    pub fn set_branch_commit_hash(&self, branch: &str, blob: Blob) -> Result<(), Error> {
         write_json(&blob, &self.root.join("branches").join(&branch))
     }
 
@@ -99,10 +101,10 @@ impl DotLog{
         self.root.join("branches").join(&branch).exists()
     }
 
-    pub fn create_branch(&self, new_branch:&str)->Result<(), Error>{
-        if !self.branch_exists(&new_branch){
+    pub fn create_branch(&self, new_branch: &str) -> Result<(), Error> {
+        if !self.branch_exists(&new_branch) {
             let commit_hash = self.get_branch_commit_hash(&self.get_branch()?)?;
-            return write_json(&commit_hash,  &self.root.join("branches").join(&new_branch));
+            return write_json(&commit_hash, &self.root.join("branches").join(&new_branch));
         }
         Ok(())
     }
@@ -118,7 +120,7 @@ pub trait JSON {
     fn read_json<A: for<'de> Deserialize<'de>>(&mut self, object_id: Blob) -> Result<A, Error>;
 }
 
-impl JSON for DirectoryObjects{
+impl JSON for DirectoryObjects {
     fn insert_json<A: Serialize>(&mut self, thing: &A) -> Result<Blob, Error> {
         Ok(self.push(&serde_json::to_vec_pretty(thing)?)?)
     }
