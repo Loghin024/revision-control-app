@@ -197,7 +197,7 @@ impl Directory {
     // }
 
     // pub fn update_files(&self, u_tree: &Directory, root: &PathBuf) {
-
+        
     //     for (entry_name, entry_value) in &u_tree.root {
     //         if let DirectoryEntry::File(file_blob) = entry_value {
     //             let blob_hash = format!("{}", file_blob);
@@ -320,11 +320,11 @@ fn get_added(main: &Directory, other: &Directory) -> BTreeMap<String, DirectoryE
                 }
             } else if let Some(DirectoryEntry::Directory(dir_s)) = main.root.get(entry_name) {
                 // if let DirectoryEntry::Directory(dir_s) = entry_value {
-                added.extend(
-                    get_added(dir_s, dir_o)
-                        .into_iter()
-                        .map(|(k, v)| (k.to_owned(), v)),
-                );
+                    added.extend(
+                        get_added(dir_s, dir_o)
+                            .into_iter()
+                            .map(|(k, v)| (k.to_owned(), v)),
+                    );
                 // }
             }
         }
@@ -346,19 +346,20 @@ fn get_deleted(main: &Directory, other: &Directory) -> BTreeMap<String, Director
                 if let Some(entry_value) = main.root.get(entry_name) {
                     deleted.insert(entry_name.clone(), entry_value.clone());
                 }
-            } else if let Some(DirectoryEntry::Directory(dir_o)) = other.root.get(entry_name) {
+            } else if let Some( DirectoryEntry::Directory(dir_o)) = other.root.get(entry_name) {
                 // if let DirectoryEntry::Directory(dir_o) = entry_value {
-                deleted.extend(
-                    get_deleted(dir_s, dir_o)
-                        .into_iter()
-                        .map(|(k, v)| (k.to_owned(), v)),
-                );
+                    deleted.extend(
+                        get_deleted(dir_s, dir_o)
+                            .into_iter()
+                            .map(|(k, v)| (k.to_owned(), v)),
+                    );
                 // }
             }
         }
     }
     deleted
 }
+
 
 fn get_changes(main: &Directory, other: &Directory) -> BTreeMap<String, DirectoryEntry> {
     let mut changes: BTreeMap<String, DirectoryEntry> = BTreeMap::new();
@@ -379,11 +380,11 @@ fn get_changes(main: &Directory, other: &Directory) -> BTreeMap<String, Director
             if main.root.contains_key(entry_name) {
                 if let Some(DirectoryEntry::Directory(dir_s)) = main.root.get(entry_name) {
                     // if let DirectoryEntry::Directory(dir_s) = entry_value {
-                    changes.extend(
-                        get_changes(dir_s, dir_o)
-                            .into_iter()
-                            .map(|(k, v)| (k.to_owned(), v)),
-                    );
+                        changes.extend(
+                            get_changes(dir_s, dir_o)
+                                .into_iter()
+                                .map(|(k, v)| (k.to_owned(), v)),
+                        );
                     // }
                 }
             }
@@ -393,6 +394,7 @@ fn get_changes(main: &Directory, other: &Directory) -> BTreeMap<String, Director
 }
 
 pub fn update_files(u_tree: &Directory, root: &PathBuf) {
+        
     for (entry_name, entry_value) in &u_tree.root {
         if let DirectoryEntry::File(file_blob) = entry_value {
             let blob_hash = format!("{}", file_blob);
@@ -469,6 +471,7 @@ pub fn add_files(a_tree: &Directory, root: &PathBuf) {
         }
     }
 }
+
 
 impl Directory {
     pub fn new<Store: Objects>(

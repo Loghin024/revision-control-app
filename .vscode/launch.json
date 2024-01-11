@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug with Argument",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/revision-control-app",
+            "args": ["status"],  // Replace with your actual arguments
+            "cwd": "${workspaceFolder}/src"
+        }
+    ]
+}
