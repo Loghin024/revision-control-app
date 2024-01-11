@@ -1,7 +1,5 @@
 # revision-control-app
 
-# Revision Control App
-
 ## Overview
 
 This is a revision control application developed for educational purpose. The app provides a simplified version of git functionalities, allowing users to manage multiple branches, switch between branches, commit changes, merge branches, view differences between branches, and more.
