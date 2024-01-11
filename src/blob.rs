@@ -21,7 +21,6 @@ impl Ord for Blob {
 
 impl PartialOrd for Blob {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // self.0.as_bytes().partial_cmp(other.0.as_bytes())
         Some(self.cmp(other))
     }
 }
@@ -63,9 +62,6 @@ impl<'de> Deserialize<'de> for Blob {
         let binary: hex::Hex = Deserialize::deserialize(deserializer)?;
         let v: Vec<u8> = binary.into();
         let mut bytes: [u8; 32] = [0; 32];
-        // for i in 0..32 {
-        //     bytes[i] = v[i];
-        // }
         bytes[..32].copy_from_slice(&v[..32]);
         Ok(Blob(Hash::from(bytes)))
     }

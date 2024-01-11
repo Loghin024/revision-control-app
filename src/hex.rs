@@ -21,7 +21,6 @@ impl<'de> Deserialize<'de> for Hex {
         D: serde::Deserializer<'de>,
     {
         let s: String = String::deserialize(deserializer)?;
-        // let b: Vec<u8> = s.into_bytes().iter().copied().collect();
         let b: Vec<u8> = s.into_bytes().to_vec();
         Ok(Hex(b))
     }
